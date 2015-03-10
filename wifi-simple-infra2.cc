@@ -89,7 +89,7 @@ int main (int argc, char *argv[])
 
   double interval = 0.001; // was 1.0 second
   bool verbose = false;
-  uint32_t n=5;
+  uint32_t n=4;
   uint32_t maxPacketCount = 320;
   uint32_t MaxPacketSize = 1024;
 
@@ -208,12 +208,6 @@ int main (int argc, char *argv[])
   apps.Stop (Seconds (5.0)); //was 10
 
 
-//
-// Create one UdpClient application to send UDP datagrams from node zero to
-// node one.
-//
-  //client1
-
   Time interPacketInterval = Seconds (interval);
 
   UdpClientHelper client;
@@ -232,31 +226,32 @@ int main (int argc, char *argv[])
   FlowMonitorHelper flowmon;
   Ptr<FlowMonitor> monitor = flowmon.InstallAll();
   
-    wifiPhy.EnablePcap ("wifi-simple-infra", apDevice);
+  wifiPhy.EnablePcap ("wifi-simple-infra", apDevice);
 
-//
-// Now, do the actual simulation.
-//
   NS_LOG_INFO ("Run Simulation.");
   Simulator::Stop (Seconds(5.0)); //was 11
   Simulator::Run ();
 
-  monitor->CheckForLostPackets ();
+  //monitor->CheckForLostPackets ();
+  double tot[n];
+  double throughput;
 
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
   std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
     {
+
 	  Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
-     // if ((t.sourceAddress=="10.1.1.1" && t.destinationAddress == "10.1.1.2"))
-      //{
-          //std::cout << "Port " << port[2];
-          std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
+          std::cout << "Flow " <<tot << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
           std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
           std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
-      	  std::cout << "  Throughput: " << i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024  << " Mbps\n";
-      //}
+	  tot[i->first] =i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
+	  std::cout << "  Throughput: " << tot[i->first] <<"\n";
+	  throughput=throughput+tot[i->first];
+      	  //std::cout << "  Throughput: " << i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024  << " Mbps\n";
      }
+
+  std::cout << "Total throughput: " << throughput <<"\n";
 
   //monitor->SerializeToXmlFile("lab-1.flowmon", true, true);
 
