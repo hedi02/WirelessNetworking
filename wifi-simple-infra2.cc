@@ -84,6 +84,14 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleInfra");
 
 int main (int argc, char *argv[])
 {
+//==========================
+time_t  timev;
+time(&timev);
+RngSeedManager::SetSeed(timev);
+RngSeedManager::SetRun (7);
+
+//==========================
+
   std::string phyMode ("DsssRate11Mbps");
   //double rss = -80;  // -dBm
 
@@ -192,7 +200,7 @@ int main (int argc, char *argv[])
   //port number, given in array
   uint16_t port[n];
 
-   std::cout << "Calculating throughput for " << n << " nodes\n";
+   //std::cout << "Calculating throughput for " << n << " nodes\n";
 
    //single server and apps with multiple ports opened
    UdpServerHelper server;
@@ -230,6 +238,7 @@ int main (int argc, char *argv[])
 
   NS_LOG_INFO ("Run Simulation.");
   Simulator::Stop (Seconds(5.0)); //was 11
+
   Simulator::Run ();
 
   //monitor->CheckForLostPackets ();
@@ -240,18 +249,21 @@ int main (int argc, char *argv[])
   std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
     {
-
-	  Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
-          std::cout << "Flow " <<tot << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
+	  //Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
+/*
+          std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
           std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
           std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
+*/
 	  tot[i->first] =i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
-	  std::cout << "  Throughput: " << tot[i->first] <<"\n";
+//	  std::cout << "  Throughput: " << tot[i->first] <<"\n";
+
 	  throughput=throughput+tot[i->first];
-      	  //std::cout << "  Throughput: " << i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024  << " Mbps\n";
      }
 
-  std::cout << "Total throughput: " << throughput <<"\n";
+    std::cout << n << "\t" << throughput/n <<"\n";
+  //std::cout << "Total throughput: " << throughput <<"\n";
+  //std::cout << "Average throughput: " << throughput/n <<"\n";
 
   //monitor->SerializeToXmlFile("lab-1.flowmon", true, true);
 

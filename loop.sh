@@ -1,7 +1,10 @@
-for round in `seq 5 10`;
+rm -f cwnd
+#$random=1 + $[ RANDOM % 10 ]
+#mv -f cwnd bck/cwnd
+for round in `seq 1 $1`;
 do
-   ../waf --run "wifi-simple-infra2 --n=$round"
-  
-  # mv "RX packets.pcap" "RxPackets_${round}.pcap"
-
+ for iteration in `seq 1 10`;
+ do
+  ../waf --run "wifi-simple-infra2 --n=$round" >> cwnd  
+ done
 done
