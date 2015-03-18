@@ -87,17 +87,19 @@ int main (int argc, char *argv[])
 //==========================
 time_t  timev;
 time(&timev);
-RngSeedManager::SetSeed(1900);
+RngSeedManager::SetSeed(timev);
 RngSeedManager::SetRun (7);
 
 //==========================
 
   std::string phyMode ("DsssRate11Mbps");
+  std::string rtsCts ("500");
   //double rss = -80;  // -dBm
 
   double interval = 0.001; // was 1.0 second
   bool verbose = false;
-  uint32_t n=4;
+  double rss = -80;  // -dBm
+  uint32_t n=3;
   uint32_t maxPacketCount = 320;
   uint32_t MaxPacketSize = 1024;
 
@@ -110,13 +112,14 @@ RngSeedManager::SetRun (7);
   cmd.AddValue ("packetCount", "size of application packet sent", maxPacketCount);
   cmd.AddValue ("interval", "interval (seconds) between packets", interval);
   cmd.AddValue ("verbose", "turn on all WifiNetDevice log components", verbose);
+  cmd.AddValue ("rtsCts", "RTS/CTS threshold", rtsCts);
 
   cmd.Parse (argc, argv);
 
   // disable fragmentation for frames below 2200 bytes
   Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
   // turn off RTS/CTS for frames below 2200 bytes
-  Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("2200"));
+  Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue (rtsCts));
   // Fix non-unicast data rate to be the same as that of unicast
   Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode", 
                       StringValue (phyMode));
@@ -145,8 +148,7 @@ RngSeedManager::SetRun (7);
   wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   // The below FixedRssLossModel will cause the rss to be fixed regardless
   // of the distance between the two stations, and the transmit power
-  wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel","Exponent",DoubleValue (3.0),
-          "ReferenceLoss", DoubleValue (40.0459));
+  wifiChannel.AddPropagationLoss ("ns3::FixedRssLossModel","Rss",DoubleValue (rss));
   wifiPhy.SetChannel (wifiChannel.Create ());
 
   // Add a non-QoS upper mac, and disable rate control
@@ -213,7 +215,7 @@ RngSeedManager::SetRun (7);
    }
 
   apps.Start (Seconds (1.0));
-  apps.Stop (Seconds (5.0)); //was 10
+  apps.Stop (Seconds (10.0)); //was 10
 
 
   Time interPacketInterval = Seconds (interval);
@@ -228,7 +230,7 @@ RngSeedManager::SetRun (7);
       client.SetAttribute ("PacketSize", UintegerValue (MaxPacketSize));
       apps = client.Install (staContainer.Get (a-1));
       apps.Start (Seconds (2.0));
-      apps.Stop (Seconds (5.0)); //was 10         
+      apps.Stop (Seconds (10.0)); //was 10         
   }
 
   FlowMonitorHelper flowmon;
@@ -237,33 +239,42 @@ RngSeedManager::SetRun (7);
   wifiPhy.EnablePcap ("wifi-simple-infra", apDevice);
 
   NS_LOG_INFO ("Run Simulation.");
-  Simulator::Stop (Seconds(5.0)); //was 11
+  Simulator::Stop (Seconds(11.0)); //was 11
 
   Simulator::Run ();
 
-  //monitor->CheckForLostPackets ();
+  monitor->CheckForLostPackets ();
   double tot[n];
   double throughput;
+  double psent;
+  double preceived;
 
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
   std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
     {
-	  //Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
-/*
+
+	  Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
+
           std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
           std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
           std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
-*/
+
 	  tot[i->first] =i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
-//	  std::cout << "  Throughput: " << tot[i->first] <<"\n";
+	  std::cout << "  Throughput: " << tot[i->first] <<"\n";
 
 	  throughput=throughput+tot[i->first];
+	  psent=psent+i->second.txBytes;
+	  preceived=preceived+i->second.rxBytes;
      }
 
-    std::cout << n << "\t" << throughput/n <<"\n";
+ // std::cout << n << "\t" << throughput/n << "\n"; 
+//<< rtsCts <<"\n";
   //std::cout << "Total throughput: " << throughput <<"\n";
   //std::cout << "Average throughput: " << throughput/n <<"\n";
+  //std::cout << "Packet loss: " << psent-preceived <<"\n";
+  //std::cout << "Packet sent: " << psent <<"\n";
+  //std::cout << "Packet received: " << preceived <<"\n";
 
   //monitor->SerializeToXmlFile("lab-1.flowmon", true, true);
 
