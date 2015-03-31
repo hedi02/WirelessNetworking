@@ -28,12 +28,13 @@ int main (int argc, char *argv[])
 //==========================
 
   std::string phyMode ("DsssRate11Mbps");
-  std::string rtsCts ("1500");
+  std::string rtsCts ("150");
 
   double interval = 0.001; // was 1.0 second
   bool verbose = false;
   double rss = -80;  // -dBm
-  uint32_t n=2;
+  uint32_t n=10;
+  uint32_t m=10;
   uint32_t maxPacketCount = 320;
   uint32_t MaxPacketSize = 1024;
   uint32_t payloadSize = 1024;
@@ -58,10 +59,13 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode", 
                       StringValue (phyMode));
 
-  NodeContainer apContainer;
-  NodeContainer staContainer;
+  NodeContainer apContainer, apContainer2;
+  NodeContainer staContainer, staContainer2;
   apContainer.Create (1);
+  apContainer2.Create (1);
   staContainer.Create (n);
+  staContainer2.Create (m);
+
 
   // The below set of helpers will help us to put together the wifi NICs we want
   WifiHelper wifi;
@@ -87,23 +91,30 @@ int main (int argc, char *argv[])
 
   // Add a non-QoS upper mac, and disable rate control
   NqosWifiMacHelper wifiMac = NqosWifiMacHelper::Default ();
+  NqosWifiMacHelper wifiMac2 = NqosWifiMacHelper::Default ();
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
                                 "DataMode",StringValue (phyMode),
                                 "ControlMode",StringValue (phyMode));
 
   // Setup the rest of the upper mac
-  Ssid ssid = Ssid ("wifi-default");
+  Ssid ssid = Ssid ("ssid1");
+  Ssid ssid2 = Ssid ("ssid2");
   // setup sta.
   wifiMac.SetType ("ns3::StaWifiMac",
                    "Ssid", SsidValue (ssid),
-                   "ActiveProbing", BooleanValue (false));
+                   "ActiveProbing", BooleanValue (true));
+  wifiMac2.SetType ("ns3::StaWifiMac",
+                   "Ssid", SsidValue (ssid2),
+                   "ActiveProbing", BooleanValue (true));
   NetDeviceContainer staDevice = wifi.Install (wifiPhy, wifiMac, staContainer);
+  NetDeviceContainer staDevice2 = wifi.Install (wifiPhy, wifiMac2, staContainer2);
   //NetDeviceContainer devices = staDevice;
 
   // setup ap.
   wifiMac.SetType ("ns3::ApWifiMac",
-                   "Ssid", SsidValue (ssid));
+                   "Ssid", SsidValue (ssid2));
   NetDeviceContainer apDevice = wifi.Install (wifiPhy, wifiMac, apContainer.Get (0));
+  NetDeviceContainer apDevice2 = wifi.Install (wifiPhy, wifiMac, apContainer2.Get (0));
   //devices.Add (apDevice);  
 
 
@@ -121,17 +132,27 @@ int main (int argc, char *argv[])
   mobility.SetPositionAllocator (positionAlloc);
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
   mobility.Install (apContainer);
+  mobility.Install (apContainer2);
   mobility.Install (staContainer);
+  mobility.Install (staContainer2);
 
   InternetStackHelper internet;
   internet.Install (apContainer);
+  internet.Install (apContainer2);
   internet.Install (staContainer);
+  internet.Install (staContainer2);
 
   Ipv4AddressHelper ipv4;
   NS_LOG_INFO ("Assign IP Addresses.");
   ipv4.SetBase ("10.1.1.0", "255.255.255.0");
   Ipv4InterfaceContainer iap = ipv4.Assign (apDevice);
   Ipv4InterfaceContainer i = ipv4.Assign (staDevice);
+
+  Ipv4AddressHelper ipv42;
+  NS_LOG_INFO ("Assign IP Addresses.");
+  ipv42.SetBase ("10.1.2.0", "255.255.255.0");
+  Ipv4InterfaceContainer iap2 = ipv42.Assign (apDevice2);
+  Ipv4InterfaceContainer i2 = ipv42.Assign (staDevice2);
 
   //port number, given in array
   uint16_t port[n];
@@ -141,14 +162,15 @@ int main (int argc, char *argv[])
 	for( uint16_t  a = 0; a < n; a = a + 1 )
    	{
 	  port[a]=8000+a;
-          Address apLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), port[a]));
-          PacketSinkHelper packetSinkHelper ("ns3::TcpSocketFactory", apLocalAddress);
+//sink = ns3.PacketSinkHelper("ns3::UdpSocketFactory", ns3.InetSocketAddress (ipcontainer.GetAddress (1), port))
+          Address apLocalAddress (InetSocketAddress(i.GetAddress (a), port[a]));
+          PacketSinkHelper packetSinkHelper ("ns3::TcpSocketFactory", InetSocketAddress(iap.GetAddress (0), port[a]));
           sinkApp[a] = packetSinkHelper.Install (apContainer.Get (0));
 
           sinkApp[a].Start (Seconds (0.0));
           sinkApp[a].Stop (Seconds (simulationTime+1));
 
-          OnOffHelper onoff ("ns3::TcpSocketFactory",Ipv4Address::GetAny ());
+          OnOffHelper onoff ("ns3::TcpSocketFactory",InetSocketAddress(i.GetAddress (a), port[a]));
 
           onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
           onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
@@ -165,11 +187,15 @@ int main (int argc, char *argv[])
 	}
 
 
+
   FlowMonitorHelper flowmon;
   Ptr<FlowMonitor> monitor = flowmon.InstallAll();
 
   wifiPhy.EnablePcap ("wifitcp", apDevice);
-  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+  wifiPhy.EnablePcap ("wifitcp3", staDevice);
+  wifiPhy.EnablePcap ("wifitcp2", apDevice2);
+  //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
 
   Simulator::Stop (Seconds (simulationTime+1));
   Simulator::Run ();
@@ -186,11 +212,11 @@ int main (int argc, char *argv[])
   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
     {
 	  Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
-          //std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
-          //std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
-          //std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
+          std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
+          std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
+          std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
 	  throughput[i->first] = i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
-      	  //std::cout << "  Throughput: " << throughput[i->first]  << " Mbps\n";
+      	  std::cout << "  Throughput: " << throughput[i->first]  << " Mbps\n";
 
 	if (t.destinationAddress=="10.1.1.1")
 	 {
@@ -199,13 +225,13 @@ int main (int argc, char *argv[])
 	  preceived=preceived+i->second.rxBytes;
 	 }
      }
-
+/*
   std::cout << tot <<"\t";
   std::cout << tot/n <<"\t";
   std::cout << psent <<"\t";
   std::cout << preceived <<"\t";
   std::cout << preceived/psent << "\n";
-
+*/
   //std::cout << n << "\t" << throughput/n << "\t" << rtsCts <<"\n";
   //std::cout << "Total throughput: " << tot <<"\n";
   //std::cout << "Average throughput: " << tot/n <<"\n";

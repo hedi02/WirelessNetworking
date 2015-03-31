@@ -1,67 +1,4 @@
-//note 2 march 22:02. in this script server model is not working. basically packets is sent from client to client.
-//propagation model seems to work
-//next: server-client / sink model
 
-//note 2 march 22:16. server installed in ap: apps = server1.Install (c.Get (0));
-// previously there is a "port unreachable message". now it's gone.
-
-//note 3 march 22:31. the bigger maxPacketCount, the bigger packet loss.
-//still don't understand why it cannot achieve 11 Mbps -> apparently 802.11b is half duplex. that's why!
-
-
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2009 The Boeing Company
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- */
-
-// 
-// This script configures two nodes on an 802.11b physical layer, with
-// 802.11b NICs in infrastructure mode, and by default, the station sends 
-// one packet of 1000 (application) bytes to the access point.  The 
-// physical layer is configured
-// to receive at a fixed RSS (regardless of the distance and transmit
-// power); therefore, changing position of the nodes has no effect. 
-//
-// There are a number of command-line options available to control
-// the default behavior.  The list of available command-line options
-// can be listed with the following command:
-// ./waf --run "wifi-simple-infra --help"
-//
-// For instance, for this configuration, the physical layer will
-// stop successfully receiving packets when rss drops below -97 dBm.
-// To see this effect, try running:
-//
-// ./waf --run "wifi-simple-infra --rss=-97 --numPackets=20"
-// ./waf --run "wifi-simple-infra --rss=-98 --numPackets=20"
-// ./waf --run "wifi-simple-infra --rss=-99 --numPackets=20"
-//
-// Note that all ns-3 attributes (not just the ones exposed in the below
-// script) can be changed at command line; see the documentation.
-//
-// This script can also be helpful to put the Wifi layer into verbose
-// logging mode; this command will turn on all wifi logging:
-// 
-// ./waf --run "wifi-simple-infra --verbose=1"
-//
-// When you are done, you will notice two pcap trace files in your directory.
-// If you have tcpdump installed, you can try this:
-//
-// tcpdump -r wifi-simple-infra-0-0.pcap -nn -tt
-//
 //test
 
 #include "ns3/core-module.h"
@@ -72,6 +9,7 @@
 #include "ns3/internet-module.h"
 #include "ns3/flow-monitor-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/point-to-point-module.h"
 
 #include <iostream>
 #include <fstream>
@@ -93,13 +31,13 @@ RngSeedManager::SetRun (7);
 //==========================
 
   std::string phyMode ("DsssRate11Mbps");
-  std::string rtsCts ("500");
+  std::string rtsCts ("1500");
   //double rss = -80;  // -dBm
 
   double interval = 0.001; // was 1.0 second
   bool verbose = false;
   double rss = -80;  // -dBm
-  uint32_t n=30;
+  uint32_t n=4;
   uint32_t maxPacketCount = 320;
   uint32_t MaxPacketSize = 1024;
 
@@ -268,12 +206,12 @@ RngSeedManager::SetRun (7);
 	  preceived=preceived+i->second.rxBytes;
      }
 
-  std::cout << n << "\t" << throughput/n << "\t" << rtsCts <<"\n";
-  //std::cout << "Total throughput: " << throughput <<"\n";
-  std::cout << "Average throughput: " << throughput/n <<"\n";
-  std::cout << "Packet loss: " << psent-preceived <<"\n";
-  std::cout << "Packet sent: " << psent <<"\n";
-  std::cout << "Packet received: " << preceived <<"\n";
+  //std::cout << n << "\t" << throughput/n << "\t" << rtsCts <<"\n";
+  std::cout << n<<"\tTotal throughput: " << throughput <<"\n";
+  //std::cout << "Average throughput: " << throughput/n <<"\n";
+  //std::cout << "Packet loss: " << psent-preceived <<"\n";
+  //std::cout << "Packet sent: " << psent <<"\n";
+  //std::cout << "Packet received: " << preceived <<"\n";
 
   //monitor->SerializeToXmlFile("lab-1.flowmon", true, true);
 

@@ -11,6 +11,8 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <limits>
+#include <iomanip> 
 
 using namespace ns3;
 
@@ -20,20 +22,20 @@ int main (int argc, char *argv[])
 {
   double simulationTime = 10; //seconds
 //==========================
-//time_t  timev;
-//time(&timev);
-//RngSeedManager::SetSeed(timev);
-//RngSeedManager::SetRun (7);
+time_t  timev;
+time(&timev);
+RngSeedManager::SetSeed(timev);
+RngSeedManager::SetRun (7);
 
 //==========================
 
   std::string phyMode ("DsssRate11Mbps");
   std::string rtsCts ("1500");
 
-  double interval = 0.001; // was 1.0 second
+  double interval = 0.1; // was 1.0 second
   bool verbose = false;
-  double rss = -80;  // -dBm
-  uint32_t n=2;
+  //double rss = -80;  // -dBm
+  uint32_t n=10;
   uint32_t maxPacketCount = 320;
   uint32_t MaxPacketSize = 1024;
   uint32_t payloadSize = 1024;
@@ -82,7 +84,7 @@ int main (int argc, char *argv[])
   wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   // The below FixedRssLossModel will cause the rss to be fixed regardless
   // of the distance between the two stations, and the transmit power
-  wifiChannel.AddPropagationLoss ("ns3::FixedRssLossModel","Rss",DoubleValue (rss));
+  wifiChannel.AddPropagationLoss ("ns3::FriisPropagationLossModel");
   wifiPhy.SetChannel (wifiChannel.Create ());
 
   // Add a non-QoS upper mac, and disable rate control
@@ -110,13 +112,13 @@ int main (int argc, char *argv[])
   // Note that with FixedRssLossModel, the positions below are not 
   // used for received signal strength. 
   MobilityHelper mobility;
-  Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
 
-  positionAlloc->Add (Vector (0.0, 0.0, 0.0));
-  for( uint16_t  a = 1; a <= n; a = a + 1 )
-   {
-  	positionAlloc->Add (Vector (5.0, 0.0, 0.0));
-   }
+  ObjectFactory pos;
+  pos.SetTypeId ("ns3::RandomRectanglePositionAllocator");
+  pos.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=500.0]"));
+  pos.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=500.0]"));
+  Ptr<PositionAllocator> positionAlloc = pos.Create ()->GetObject<PositionAllocator> ();
+
 
   mobility.SetPositionAllocator (positionAlloc);
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
@@ -176,41 +178,52 @@ int main (int argc, char *argv[])
 
   monitor->CheckForLostPackets ();
   double tot=0;
+  double totsq=0;
+  double variance=0;
+ std::cout << std::fixed;
+  
   double throughput[2*n]; //for every node, there are 2 flows in TCP
-  double psent=0;
-  double preceived=0;
+  int psent=0;
+  int preceived=0;
 
-  std::cout << n << "\t" << rtsCts <<"\t";
+  ////std::cout << n << "\t" << rtsCts <<"\t";
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
   std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
     {
 	  Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
-          //std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
-          //std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
-          //std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
+          //std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\t";
+          //std::cout << "  Tx Bytes:   " << i->second.txBytes << "\t";
+          //std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\t";
 	  throughput[i->first] = i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
       	  //std::cout << "  Throughput: " << throughput[i->first]  << " Mbps\n";
-
 	if (t.destinationAddress=="10.1.1.1")
 	 {
+	  std::cout << n << "\t" << rtsCts <<"\t";
+	  std::cout << throughput[i->first]  << "\t\n";
+
+
 	  tot=tot+throughput[i->first];
+	  totsq=totsq+pow(throughput[i->first],2);
 	  psent=psent+i->second.txBytes;
 	  preceived=preceived+i->second.rxBytes;
 	 }
      }
 
-  std::cout << tot <<"\t";
-  std::cout << tot/n <<"\t";
-  std::cout << psent <<"\t";
-  std::cout << preceived <<"\t";
-  std::cout << preceived/psent << "\n";
+  //std::cout << tot <<"\t";
+  //std::cout << tot/n <<"\t";
+  //std::cout << psent <<"\t";
+  //std::cout << preceived <<"\t";
+  //std::cout << preceived/psent << "\n";
 
   //std::cout << n << "\t" << throughput/n << "\t" << rtsCts <<"\n";
   //std::cout << "Total throughput: " << tot <<"\n";
-  //std::cout << "Average throughput: " << tot/n <<"\n";
-  //std::cout << "Packet loss: " << psent-preceived <<"\n";
-  //std::cout << "Packet sent: " << psent <<"\n";
+  std::cout << n << "\t" << rtsCts <<"\t";
+  std::cout << "Average: " << tot/n <<"\t";
+  variance=totsq/n-pow(tot/n,2);
+  std::cout << "Variance: " << variance <<"\t";
+  std::cout << "loss: " << psent-preceived <<"\t";
+  std::cout << "sent: " << psent <<"\n";
   //std::cout << "Packet received: " << preceived <<"\n";
   //monitor->SerializeToXmlFile("lab-1.flowmon", true, true);
 

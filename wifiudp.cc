@@ -32,8 +32,8 @@ int main (int argc, char *argv[])
 
   double interval = 0.001; // was 1.0 second
   bool verbose = false;
-  double rss = -80;  // -dBm
-  uint32_t n=60;
+  double rss = -50;  // was -80 -dBm
+  uint32_t n=1;
   uint32_t maxPacketCount = 320;
   uint32_t MaxPacketSize = 1024;
   uint32_t payloadSize = 1024;
@@ -96,7 +96,7 @@ int main (int argc, char *argv[])
   // setup sta.
   wifiMac.SetType ("ns3::StaWifiMac",
                    "Ssid", SsidValue (ssid),
-                   "ActiveProbing", BooleanValue (false));
+                   "ActiveProbing", BooleanValue (false)); //was false
   NetDeviceContainer staDevice = wifi.Install (wifiPhy, wifiMac, staContainer);
   NetDeviceContainer devices = staDevice;
 
@@ -153,7 +153,7 @@ int main (int argc, char *argv[])
           onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
           onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
           onoff.SetAttribute ("PacketSize", UintegerValue (payloadSize));
-          onoff.SetAttribute ("DataRate", StringValue ("10Mbps")); //bit/s
+          onoff.SetAttribute ("DataRate", StringValue ("5Mbps")); //bit/s
 
           AddressValue remoteAddress (InetSocketAddress (iap.GetAddress (0), port[a]));
           onoff.SetAttribute ("Remote", remoteAddress);
@@ -187,8 +187,8 @@ int main (int argc, char *argv[])
     {
 	  Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
           //std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";
-          //std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
-          //std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
+          std::cout << "  Tx Bytes:   " << i->second.txBytes << "\n";
+          std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\n";
 	  throughput[i->first] = i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
       	  //std::cout << "  Throughput: " << throughput[i->first]  << " Mbps\n";
 
@@ -199,20 +199,20 @@ int main (int argc, char *argv[])
 	  preceived=preceived+i->second.rxBytes;
 	 }
      }
-
+/*
   std::cout << tot <<"\t";
   std::cout << tot/n <<"\t";
   std::cout << psent <<"\t";
   std::cout << preceived <<"\t";
   std::cout << preceived/psent << "\n";
-
+*/
 
   //std::cout << n << "\t" << throughput/n << "\t" << rtsCts <<"\n";
-  //std::cout << "Total throughput: " << tot <<"\n";
-  //std::cout << "Average throughput: " << tot/n <<"\n";
-  //std::cout << "Packet loss: " << psent-preceived <<"\n";
-  //std::cout << "Packet sent: " << psent <<"\n";
-  //std::cout << "Packet received: " << preceived <<"\n";
+  std::cout << "Total throughput: " << tot <<"\n";
+  std::cout << "Average throughput: " << tot/n <<"\n";
+  std::cout << "Packet loss: " << psent-preceived <<"\n";
+  std::cout << "Packet sent: " << psent <<"\n";
+  std::cout << "Packet received: " << preceived <<"\n";
   //monitor->SerializeToXmlFile("lab-1.flowmon", true, true);
 
   Simulator::Destroy ();
