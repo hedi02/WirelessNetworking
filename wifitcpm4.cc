@@ -15,6 +15,17 @@
 #include <iomanip> 
 
 using namespace ns3;
+#include "ns3/flow-monitor-module.h"
+#include "ns3/applications-module.h"
+
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <limits>
+#include <iomanip> 
+
+using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("WifiSimpleInfra");
 
@@ -35,7 +46,7 @@ RngSeedManager::SetRun (7);
   double interval = 0.1; // was 1.0 second
   bool verbose = false;
   //double rss = -80;  // -dBm
-  uint32_t n=25;
+  uint32_t n=50;
   uint32_t maxPacketCount = 320;
   uint32_t MaxPacketSize = 1024;
   uint32_t payloadSize = 1024;
@@ -84,7 +95,7 @@ RngSeedManager::SetRun (7);
   wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   // The below FixedRssLossModel will cause the rss to be fixed regardless
   // of the distance between the two stations, and the transmit power
-  wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel");
+  wifiChannel.AddPropagationLoss ("ns3::FriisPropagationLossModel");
   wifiPhy.SetChannel (wifiChannel.Create ());
 
   // Add a non-QoS upper mac, and disable rate control
@@ -115,8 +126,8 @@ RngSeedManager::SetRun (7);
 
   ObjectFactory pos;
   pos.SetTypeId ("ns3::RandomRectanglePositionAllocator");
-  pos.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=10.0|Max=60.0]"));
-  pos.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=10.0|Max=60.0]"));
+  pos.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=-100.0|Max=100.0]"));
+  pos.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=-100.0|Max=100.0]"));
   Ptr<PositionAllocator> positionAlloc = pos.Create ()->GetObject<PositionAllocator> ();
 
   Ptr<ListPositionAllocator> positionAllocAp = CreateObject<ListPositionAllocator> ();
@@ -153,11 +164,10 @@ RngSeedManager::SetRun (7);
 
           sinkApp[a].Start (Seconds (0.0));
           sinkApp[a].Stop (Seconds (simulationTime+1));
-	
 
           OnOffHelper onoff ("ns3::TcpSocketFactory",Ipv4Address::GetAny ());
 
-          onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=10]"));
+          onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
           onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
           onoff.SetAttribute ("PacketSize", UintegerValue (payloadSize));
           onoff.SetAttribute ("DataRate", StringValue ("5Mbps")); //bit/s
@@ -210,14 +220,11 @@ int ncount=(i->first)-1;
 Ptr<MobilityModel> mob = staContainer.Get(ncount)->GetObject<MobilityModel>();
 pos2 = mob->GetPosition ();
 
-	  std::cout << t.sourceAddress <<"\t";
 	  std::cout << n << "\t" << rtsCts <<"\t";
-	  std::cout << i->second.txBytes << "\t";
 	  std::cout << throughput[i->first]  << "\t";
-	  std::cout << pow(pow(pos2.x,2)+pow(pos2.y,2),0.5)<< "\t\n";
-	  //std::cout << pos2.x  << "\t";
-	  //std::cout << pos2.y  << "\t\n";
-
+	  std::cout << pow(pow(pos2.x,2)+pow(pos2.y,2),0.5)<< "\t";
+	  std::cout << pos2.x  << "\t";
+	  std::cout << pos2.y  << "\t\n";
 
 	  tot=tot+throughput[i->first];
 	  totsq=totsq+pow(throughput[i->first],2);
@@ -235,12 +242,11 @@ pos2 = mob->GetPosition ();
 
   //std::cout << n << "\t" << throughput/n << "\t" << rtsCts <<"\n";
   //std::cout << "Total throughput: " << tot <<"\n";
-  //std::cout << n << "\t" << rtsCts <<"\t";
-  std::cout << "Avg: " << tot/n <<"\t";
-  std::cout << "Tot: " << tot <<"\t";
+  std::cout << n << "\t" << rtsCts <<"\t";
+  std::cout << "Average: " << tot/n <<"\t";
   variance=totsq/n-pow(tot/n,2);
-  //std::cout << "Variance: " << variance <<"\t";
-  std::cout << "Var: " << pow(variance,0.5)/tot/n <<"\t";
+  std::cout << "Variance: " << variance <<"\t";
+  std::cout << "Variability: " << pow(variance,0.5)/tot/n <<"\t";
   std::cout << "loss: " << psent-preceived <<"\t";
   std::cout << "sent: " << psent <<"\n";
   //std::cout << "Packet received: " << preceived <<"\n";

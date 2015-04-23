@@ -160,7 +160,7 @@ RngSeedManager::SetRun (7);
           onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=10]"));
           onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
           onoff.SetAttribute ("PacketSize", UintegerValue (payloadSize));
-          onoff.SetAttribute ("DataRate", StringValue ("5Mbps")); //bit/s
+          onoff.SetAttribute ("DataRate", StringValue ("10Mbps")); //bit/s
 
           AddressValue remoteAddress (InetSocketAddress (iap.GetAddress (0), port[a]));
           onoff.SetAttribute ("Remote", remoteAddress);
