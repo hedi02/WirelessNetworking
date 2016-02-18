@@ -1,30 +1,3 @@
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2009 The Boeing Company
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- */
- 
- /*
-  Hedi Krishna, EEMCS TU Delft, April 2015
-  https://github.com/hedi02/WirelessNetworking
-  This script runs Wifi transmission simulation for n number of nodes
-  Throughput for each node is then calculated
-  Based on wifi-simple-infra.cc
-  */
-  
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/mobility-module.h"
@@ -48,24 +21,32 @@ NS_LOG_COMPONENT_DEFINE ("WifiSimpleInfra");
 int main (int argc, char *argv[])
 {
   double simulationTime = 10; //seconds
-  //==========================
-  time_t  timev;
-  time(&timev);
-  RngSeedManager::SetSeed(timev);
-  RngSeedManager::SetRun (7);
-  //==========================
+//==========================
+time_t  timev;
+time(&timev);
+RngSeedManager::SetSeed(timev);
+RngSeedManager::SetRun (7);
+
+//==========================
 
   std::string phyMode ("DsssRate11Mbps");
   std::string rtsCts ("150");
 
+  double interval = 0.1; // was 1.0 second
   bool verbose = false;
   //double rss = -80;  // -dBm
   uint32_t n=25;
+  uint32_t maxPacketCount = 320;
+  uint32_t MaxPacketSize = 1024;
   uint32_t payloadSize = 1024;
   CommandLine cmd;
 
   cmd.AddValue ("n", "number of nodes", n);
   cmd.AddValue ("phyMode", "Wifi Phy mode", phyMode);
+  //cmd.AddValue ("rss", "received signal strength", rss);
+  cmd.AddValue ("packetSize", "size of application packet sent", MaxPacketSize);
+  cmd.AddValue ("packetCount", "size of application packet sent", maxPacketCount);
+  cmd.AddValue ("interval", "interval (seconds) between packets", interval);
   cmd.AddValue ("verbose", "turn on all WifiNetDevice log components", verbose);
   cmd.AddValue ("rtsCts", "RTS/CTS threshold", rtsCts);
 
@@ -73,7 +54,7 @@ int main (int argc, char *argv[])
 
   // disable fragmentation for frames below 2200 bytes
   Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
-  // turn off RTS/CTS for frames below 'rtsCts' bytes
+  // turn off RTS/CTS for frames below 2200 bytes
   Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue (rtsCts));
   // Fix non-unicast data rate to be the same as that of unicast
   Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode", 
@@ -172,8 +153,10 @@ int main (int argc, char *argv[])
 
           sinkApp[a].Start (Seconds (0.0));
           sinkApp[a].Stop (Seconds (simulationTime+1));
+	
 
           OnOffHelper onoff ("ns3::TcpSocketFactory",Ipv4Address::GetAny ());
+
           onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=10]"));
           onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
           onoff.SetAttribute ("PacketSize", UintegerValue (payloadSize));
@@ -183,6 +166,7 @@ int main (int argc, char *argv[])
           onoff.SetAttribute ("Remote", remoteAddress);
 
           apps[a].Add (onoff.Install (staContainer.Get (a)));
+
           apps[a].Start (Seconds (1.0));
           apps[a].Stop (Seconds (simulationTime+1));
 	}
@@ -201,14 +185,15 @@ int main (int argc, char *argv[])
   double tot=0;
   double totsq=0;
   double variance=0;
-  std::cout << std::fixed;
+ std::cout << std::fixed;
   
   double throughput[2*n]; //for every node, there are 2 flows in TCP
   int psent=0;
   int preceived=0;
 
-  Vector pos2;
+Vector pos2;
 
+  ////std::cout << n << "\t" << rtsCts <<"\t";
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
   std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
@@ -217,27 +202,30 @@ int main (int argc, char *argv[])
           //std::cout << "Flow " << i->first  << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\t";
           //std::cout << "  Tx Bytes:   " << i->second.txBytes << "\t";
           //std::cout << "  Rx Bytes:   " << i->second.rxBytes << "\t";
-	      throughput[i->first] = i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
+	  throughput[i->first] = i->second.rxBytes * 8.0 / (i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds())/1024/1024;
       	  //std::cout << "  Throughput: " << throughput[i->first]  << " Mbps\n";
-		  
-		if (t.destinationAddress=="10.1.1.1")
-		 {
-		  int ncount=(i->first)-1;
-		  Ptr<MobilityModel> mob = staContainer.Get(ncount)->GetObject<MobilityModel>();
-		  pos2 = mob->GetPosition ();
+	if (t.destinationAddress=="10.1.1.1")
+	 {
+int ncount=(i->first)-1;
+Ptr<MobilityModel> mob = staContainer.Get(ncount)->GetObject<MobilityModel>();
+pos2 = mob->GetPosition ();
 
-		  std::cout << t.sourceAddress <<"\t";
-		  std::cout << n << "\t" << rtsCts <<"\t";
-		  std::cout << i->second.txBytes << "\t";
-		  std::cout << throughput[i->first]  << "\t";
-		  std::cout << pow(pow(pos2.x,2)+pow(pos2.y,2),0.5)<< "\t\n"; //calculate node distance to AP
-		  
-		  tot=tot+throughput[i->first];
-		  totsq=totsq+pow(throughput[i->first],2);
-		  psent=psent+i->second.txBytes;
-		  preceived=preceived+i->second.rxBytes;
-		 }
+	  std::cout << t.sourceAddress <<"\t";
+	  std::cout << n << "\t" << rtsCts <<"\t";
+	  std::cout << i->second.txBytes << "\t";
+	  std::cout << throughput[i->first]  << "\t";
+	  std::cout << pow(pow(pos2.x,2)+pow(pos2.y,2),0.5)<< "\t\n";
+	  //std::cout << pos2.x  << "\t";
+	  //std::cout << pos2.y  << "\t\n";
+
+
+	  tot=tot+throughput[i->first];
+	  totsq=totsq+pow(throughput[i->first],2);
+	  psent=psent+i->second.txBytes;
+	  preceived=preceived+i->second.rxBytes;
+	 }
      }
+
 
   //std::cout << tot <<"\t";
   //std::cout << tot/n <<"\t";
@@ -256,6 +244,7 @@ int main (int argc, char *argv[])
   std::cout << "loss: " << psent-preceived <<"\t";
   std::cout << "sent: " << psent <<"\n";
   //std::cout << "Packet received: " << preceived <<"\n";
+  //monitor->SerializeToXmlFile("lab-1.flowmon", true, true);
 
   Simulator::Destroy ();
   return 0;
